@@ -1,0 +1,233 @@
+---
+title: "Monte-Carlo"
+author: "Alexander Khramov"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(cubature)
+```
+
+$$
+\frac{4}{\pi}\iiint\limits_{\begin{matrix}x>0\\a<y<bx\\0<z<cx\end{matrix}}  x^{-2} e^{-px^2-y^2-z^2}\, dx\,dy\,dz
+$$
+
+
+Параметры
+```{r}
+a <- 1
+b <- 1
+c <- 1
+p <- 1
+```
+
+Изначальная функция
+
+```{r}
+f <- function(x) {
+    x[1]^(-2)*exp(-p*x[1]^2 - x[2]^2 -x[3]^2) * 4 / pi
+}
+```
+
+Интегрирование ведётся в области $x > a/b$, $a<y<bx$, $0<z<cx$. 
+
+Введём новые переменные:
+
+$$
+\xi = 1-e^{-(x-a/b)\lambda} \in \left(0, 1\right),\\
+\eta = \frac{y-a}{bx-a}\in(0,1),\\
+\zeta = \frac{z}{cx}\in(0,1).
+$$
+
+
+Соответственно, подстановка выражается так:
+
+$$x = -\frac{1}{\lambda}\ln(1-\xi)+\frac{a}{b},\\
+y=\eta(bx-a)+a,\\
+z=cx\zeta.$$
+
+Якобиан:
+
+$$J = \frac{(bx-a)cx}{\lambda(1-\xi)}.$$
+
+Определим соответвующие функции
+
+
+```{r}
+lambda <- 1
+
+x.first <- function(xi) {
+    -log(1-xi)/lambda + a/b
+}
+
+integral.subst <- function(xi) {
+    x <- x.first(xi[1])
+    c(
+        x,
+        xi[2]*(b*x-a)+a,
+        c*x*xi[3]
+        )
+}
+
+jacobian <- function(xi) {
+    x <- x.first(xi[1])
+    1/((1-xi[1])*lambda) * (b*x-a) * c*x
+}
+```
+
+Посчитаем при помощи пакета cubature (вариант квадратурных формул)
+
+```{r}
+numerical.res <- adaptIntegrate(function(x) f(integral.subst(x)) * jacobian(x), lowerLimit = c(0, 0, 0), upperLimit = c(1, 1, 1))
+numerical.res$integral
+numerical.res$error
+c(numerical.res$integral - numerical.res$error, numerical.res$integral + numerical.res$error)
+```
+
+```{r}
+calculate <- function(N = 10000) {
+    saved_seed <- .Random.seed
+    x <- runif(3*N)
+    m <- sapply(1:N, function(i) f(integral.subst(x[(3*i-2):(3*i)])) * jacobian(x[(3*i-2):(3*i)]))
+    
+    J <- mean(m)
+    s <- sd(m)
+    
+    list(sample=m, value=J, sd=s, size=N, seed=saved_seed)
+}
+```
+
+Посчитаем для N = 10,000
+
+```{r}
+N <- 10000
+set.seed(42)
+res <- calculate(N)
+res$value
+```
+
+Доверительный интервал:
+
+```{r}
+gamma <- 0.95
+C <- qnorm((1+gamma) / 2)
+res$sd * C / sqrt(res$size)
+c(res$value - res$sd*C/sqrt(res$size), res$value + res$sd*C/sqrt(res$size))
+```
+
+Построим траекторию и её 95%-доверительную облась
+
+$$
+\delta_N(t)=\frac{1}{[Nt]}\sum_{i=1}^{[Nt]}X_i
+$$
+
+```{r}
+ts <- seq(1/res$size,1,1/res$size)
+int <- seq(floor(res$size/100), res$size, ceiling(res$size/10000))
+lower <- (res$value - (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+upper <- (res$value + (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+
+plot(ts[int], (cumsum(res$sample)/seq(1,res$size))[int], type="l", ylim=c(min(lower[int]), max(upper[int])))
+lines(ts[int], upper[int], col="red")
+lines(ts[int], lower[int], col="blue")
+```
+
+Пример, где траектория выходит за доверительную область
+
+```{r}
+load("break_conf_area")
+if (recalculate) {
+    N <- 10000
+    ts <- seq(1/res$size,1,1/res$size)
+    res <- calculate(N)
+    lower <- (res$value - (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+    upper <- (res$value + (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+    while (all(cumsum(res$sample)/seq(1,res$size) >= lower) & all(cumsum(res$sample)/seq(1,res$size) <= upper)) {
+        res <- calculate(N)
+        lower <- (res$value - (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+        upper <- (res$value + (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+    }
+}
+```
+
+```{r}
+ts <- seq(1/res$size,1,1/res$size)
+int <- seq(floor(res$size/100), res$size, ceiling(res$size/10000))
+lower <- (res$value - (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+upper <- (res$value + (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+
+plot(ts[int], (cumsum(res$sample)/seq(1,res$size))[int], type="l", ylim=c(min(lower[int]), max(upper[int])))
+lines(ts[int], upper[int], col="red")
+lines(ts[int], lower[int], col="blue")
+```
+
+Посчитаем для N = 10,000,000
+
+```{r}
+load("MC1e7")
+if (recalculate){
+N <- 1e7
+set.seed(42)
+res <- calculate(N)
+recalculate <- F
+save(res, recalculate, file="MC1e7")
+}
+res$value
+```
+
+Доверительный интервал:
+
+```{r}
+gamma <- 0.95
+C <- qnorm((1+gamma) / 2)
+res$sd*C/sqrt(res$size)
+c(res$value - res$sd*C/sqrt(res$size), res$value + res$sd*C/sqrt(res$size))
+```
+
+Построим траекторию 
+
+$$
+\delta_N(t)=\frac{1}{[Nt]}\sum_{i=1}^{[Nt]}X_i
+$$
+
+Просто так
+
+$$\frac{1}{\sqrt{N}}\sum_{i=1}^{[Nt]} \frac{X_i-\delta_N(t)}{\hat\sigma_N} \Longrightarrow W(t)+tu,\ u\sim N(0,1)$$
+
+```{r}
+m_standartized <- (res$sample - res$value)/(res$sd*sqrt(res$size))
+m_stand_cumsum <- cumsum(m_standartized)
+
+ts <- seq(1/res$size,1,1/res$size)
+
+plot(ts[seq(1,res$size,10)], m_stand_cumsum[seq(1,res$size,10)], type="l")
+```
+
+Траектория 
+
+```{r}
+ts <- seq(1/res$size,1,1/res$size)
+int <- seq(floor(res$size/100), res$size, ceiling(res$size/10000))
+lower <- (res$value - (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+upper <- (res$value + (0.1+3.15*sqrt(ts))*sqrt(res$size)*res$sd/(seq(1,res$size)))
+
+plot(ts[int], (cumsum(res$sample)/seq(1,res$size))[int], type="l", ylim=c(min(lower[int]), max(upper[int])))
+lines(ts[int], upper[int], col="red")
+lines(ts[int], lower[int], col="blue")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
