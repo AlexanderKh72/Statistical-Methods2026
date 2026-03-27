@@ -192,19 +192,6 @@ $$
 \delta_N(t)=\frac{1}{[Nt]}\sum_{i=1}^{[Nt]}X_i
 $$
 
-Просто так
-
-$$\frac{1}{\sqrt{N}}\sum_{i=1}^{[Nt]} \frac{X_i-\delta_N(t)}{\hat\sigma_N} \Longrightarrow W(t)+tu,\ u\sim N(0,1)$$
-
-```{r}
-m_standartized <- (res$sample - res$value)/(res$sd*sqrt(res$size))
-m_stand_cumsum <- cumsum(m_standartized)
-
-ts <- seq(1/res$size,1,1/res$size)
-
-plot(ts[seq(1,res$size,10)], m_stand_cumsum[seq(1,res$size,10)], type="l")
-```
-
 Траектория 
 
 ```{r}
