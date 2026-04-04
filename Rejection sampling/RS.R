@@ -43,13 +43,15 @@ u <- function(x, h) {
   
   corners <- c(rbind(x[2:(k-2)], z.k), x[k-1])
   
+  # индексы точек, через которые проходят прямые на каждом участке
+  # (заметим, что...)
   j <- cumsum(rep(c(+2, -1), k - 2))
   
   slope <- (h[j+1] - h[j]) / (x[j+1] - x[j])
   intercept <- h[j] - x[j] * slope
   
   # Момент хардкодинга из-за того, что логарифм плотности не выпуклый вверх
-  slope[length(slope)] <- -1/2  # h(x) ~ -0.5x, при x -> Inf
+  slope[length(slope)] <- -1/2  # h(x) ~ -1/(2*gamma^2) * x, при x -> Inf
   intercept[length(intercept)] <- -slope[length(slope)] * x[k-1] + h[k-1]  # чтобы проходила через (x_{k-1}, h(x_{k-1}))
   
   list(corners=corners, slope=slope, intercept=intercept)
@@ -63,6 +65,8 @@ integrate.u <- function(u.k) {
 }
 
 # Моделирование n случайных величин из распределения Бирнбаума-Саундерса
+# Алгоритм по статье (Gilks & Wild, 1990)
+# (с другим способом построения мажоранты)
 rBirnSaund <- function(n) {
   k <- 4  # текущее количество точек, по которым строится мажоранта
   x <- c(0.1, 0.25, 0.7, 0.75)  # точки, в которых был посчитан логарифм плотности
@@ -74,18 +78,19 @@ rBirnSaund <- function(n) {
   
   res.sample <- numeric(0)
   while (length(res.sample) < n) {
-    seed <- .Random.seed
+    #seed <- .Random.seed
     accepted <- F
     # Sampling step
     ## Sample x* from u_k
     j <- sample(1:length(corners), size=1, prob=integrals)  # выбираем компоненту
-    x.star <- (log(integrals[j] * u.k$slope[j] * runif(1) + exp(u.k$slope[j]*corners[j] + u.k$intercept[j])) - u.k$intercept[j]) / u.k$slope[j]
-    u.k.star <- u.k$slope[j]*x.star + u.k$intercept[j]
+    x.star <- (log(integrals[j] * u.k$slope[j] * runif(1) + 
+                     exp(u.k$slope[j]*corners[j] + u.k$intercept[j])) - u.k$intercept[j]) / u.k$slope[j] # моделируем методом обратной функции
+    u.k.star <- u.k$slope[j]*x.star + u.k$intercept[j]  # значение мажоранты в смоделирванной точке 
     ## Sample w from Uniform(0,1)
     w <- runif(1)
     ## Squeezing test
-    i <- max(which(x < x.star)) |> suppressWarnings()
-    if ((i < k) && (i != -Inf)) {
+    i <- max(which(x < x.star)) |> suppressWarnings()  # между какими иксами попала x* (можно было через j посчитать)
+    if ((i < k) && (i != -Inf)) {  # отрезки, где определена миноранта
       l.k <- h[i]+((h[i+1] - h[i]) / (x[i+1] - x[i])) * (x.star - x[i])
       if (w <= exp(l.k - u.k.star)) {
         res.sample <- c(res.sample, x.star)
@@ -109,7 +114,7 @@ rBirnSaund <- function(n) {
         #   x <- c(x, x.star)  # Мы не добавляем точки, больше 0.75 
         #   h <- c(h, h.star)  # (точка перегиба чуть правее 0.75)
         # }
-        else {
+        else if (i < k) {
           x <- c(x[1:i], x.star, x[(i+1):k])
           h <- c(h[1:i], h.star, h[(i+1):k])
         }
