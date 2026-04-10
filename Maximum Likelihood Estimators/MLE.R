@@ -1,6 +1,8 @@
 #install.packages("bbmle")
 library(bbmle)
 
+# 21. Двойное цензурирование. Исследовать зависимость ширины доверительного интервала от размера выборки
+
 start.seed <- 42
 set.seed(start.seed)
 
@@ -13,6 +15,7 @@ X <- rgamma(n, shape=2, scale=2)
 U <- rexp(n, rate=0.5)
 V <- U + runif(n, 0, 10)
 
+# Z -- цензурированное значение X
 Z <- pmax(U, pmin(X,V))
 delta1 <- as.numeric(X<U)
 delta2 <- as.numeric(X<V)
