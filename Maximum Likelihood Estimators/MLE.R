@@ -1,12 +1,15 @@
+#install.packages("bbmle")
 library(bbmle)
 
 start.seed <- 42
 set.seed(start.seed)
 
+# Проверим на какой-то выборке адекватность оценок
+
 # Выборка X из гамма-распределения
+n <- 500
 X <- rgamma(n, shape=2, scale=2)
-# Надо промоделировать U и V с каким-то распределением 
-# Или сразу моделировать дельты?
+# Промоделируем U и V с каким-то распределением 
 U <- rexp(n, rate=0.5)
 V <- U + runif(n, 0, 10)
 
@@ -16,6 +19,7 @@ delta2 <- as.numeric(X<V)
 
 # Слагаемые логарифма функции правдоподобия, зависящие от неизвестных параметров.
 # Другие слагаемые не зависят от параметров, но зависят от ф.р. U и V, которые неизвестны.
+# (вывод см. в файле log-likelihood-derivation.pdf)
 minusLL <- function(shape, scale) {
     -sum(delta1*pgamma(Z, shape=shape, scale=scale, log.p=T)+
              (1-delta2)*pgamma(Z, shape=shape, scale=scale, log.p=T, lower.tail=F)+
@@ -26,12 +30,16 @@ model <- mle2(minusLL, start=list(shape=3,scale=0.5),
               method = "L-BFGS-B", 
               lower=c(shape=0,scale=1e-10))
 confint(model, level=0.95)
+confint(model, level=0.99)
 
 # График (корня из) профиля правдоподобия.
-# То что он похож на |x| говорит о том, что модель адекватна
+# То что он похож на |x| (в окрестности оценки) говорит о том, что модель адекватна (профиль хорошо приближается параболой)
 # т.е. (асимптотическим) доверительным интервалам для параметров можно доверять
 plot(profile(model))
 
+# Исследуем зависимость ширины доверительных интервалов от размера выборки
+# Для этого будем находить их для выборок размера от 100 до 10,000 с шагом 100 
+load("confint_width")
 if (recalculate) {
     shape.wconfint <- numeric(0)
     scale.wconfint <- numeric(0)
@@ -67,10 +75,15 @@ if (recalculate) {
     save(shape.wconfint, scale.wconfint, recalculate, start.seed, current.seed, file="confint_width")
 }
 
+# Построим график зависимости ширины от размера выборки
 plot(x=seq(1, 1e2, 1)*100, shape.wconfint, col="blue", xlab="n", ylab="Conf. int. width")
 points(seq(1, 1e2, 1)*100, scale.wconfint, col="black", pch=8)
 legend("topright", legend = c("shape", "scale"), col = c("blue", "black"), lty = 1)
 
-plot(x=seq(1, 1e2, 1)*100, log(shape.wconfint), col="blue", xlab="n", ylab="Conf. int. width")
-points(seq(1, 1e2, 1)*100, log(scale.wconfint), col="black", pch=8)
+# После возведения ширины в степень -2, зависимость стала похожей на линейную
+# Значит ширина доверительного интервала пропорциональна (в каком-то смысле?) n^(-1/2)
+# (скорость убывания o_P(n^(-1/2)) возникала в условиях регулярности для ас. нормальности)
+# (поэтому я попробовал именно такое преобразование)
+plot(x=seq(1, 1e2, 1)*100, (shape.wconfint)^(-2), col="blue", xlab="n", ylab="Conf. int. width")
+points(seq(1, 1e2, 1)*100, (scale.wconfint)^(-2), col="black", pch=8)
 legend("topright", legend = c("shape", "scale"), col = c("blue", "black"), lty = 1)
