@@ -46,8 +46,7 @@ if (recalculate) {
     for (n in seq(1, 1e2, 1)*100) {
         # Выборка X из гамма-распределения
         X <- rgamma(n, shape=2, scale=2)
-        # Надо промоделировать U и V с каким-то распределением 
-        # Или сразу моделировать дельты?
+        # Промоделируем U и V с каким-то распределением 
         U <- rexp(n, rate=0.5)
         V <- U + runif(n, 0, 10)
         
@@ -65,7 +64,7 @@ if (recalculate) {
         model <- mle2(minusLL, start=list(shape=3,scale=0.5),
                       method = "L-BFGS-B", 
                       lower=c(shape=0,scale=1e-10))
-        ci <- confint(model, level=0.95)
+        ci <- suppressMessages(confint(model, level=0.95))
         
         shape.wconfint <- c(shape.wconfint, ci["shape", 2] - ci["shape", 1])
         scale.wconfint <- c(scale.wconfint, ci["scale", 2] - ci["scale", 1])
