@@ -1,0 +1,76 @@
+library(bbmle)
+
+start.seed <- 42
+set.seed(start.seed)
+
+# Выборка X из гамма-распределения
+X <- rgamma(n, shape=2, scale=2)
+# Надо промоделировать U и V с каким-то распределением 
+# Или сразу моделировать дельты?
+U <- rexp(n, rate=0.5)
+V <- U + runif(n, 0, 10)
+
+Z <- pmax(U, pmin(X,V))
+delta1 <- as.numeric(X<U)
+delta2 <- as.numeric(X<V)
+
+# Слагаемые логарифма функции правдоподобия, зависящие от неизвестных параметров.
+# Другие слагаемые не зависят от параметров, но зависят от ф.р. U и V, которые неизвестны.
+minusLL <- function(shape, scale) {
+    -sum(delta1*pgamma(Z, shape=shape, scale=scale, log.p=T)+
+             (1-delta2)*pgamma(Z, shape=shape, scale=scale, log.p=T, lower.tail=F)+
+             (1-delta1)*delta2*(dgamma(Z, shape=shape, scale=scale, log=T)))
+}
+
+model <- mle2(minusLL, start=list(shape=3,scale=0.5),
+              method = "L-BFGS-B", 
+              lower=c(shape=0,scale=1e-10))
+confint(model, level=0.95)
+
+# График (корня из) профиля правдоподобия.
+# То что он похож на |x| говорит о том, что модель адекватна
+# т.е. (асимптотическим) доверительным интервалам для параметров можно доверять
+plot(profile(model))
+
+if (recalculate) {
+    shape.wconfint <- numeric(0)
+    scale.wconfint <- numeric(0)
+    for (n in seq(1, 1e2, 1)*100) {
+        # Выборка X из гамма-распределения
+        X <- rgamma(n, shape=2, scale=2)
+        # Надо промоделировать U и V с каким-то распределением 
+        # Или сразу моделировать дельты?
+        U <- rexp(n, rate=0.5)
+        V <- U + runif(n, 0, 10)
+        
+        Z <- pmax(U, pmin(X,V))
+        delta1 <- as.numeric(X<U)
+        delta2 <- as.numeric(X<V)
+        
+        # Слагаемые логарифма функции правдоподобия, зависящие от неизвестных параметров.
+        # Другие слагаемые не зависят от параметров, но зависят от ф.р. U и V, которые неизвестны.
+        minusLL <- function(shape, scale) {
+          -sum(delta1*pgamma(Z, shape=shape, scale=scale, log.p=T)+
+                   (1-delta2)*pgamma(Z, shape=shape, scale=scale, log.p=T, lower.tail=F)+(1-delta1)*delta2*((shape-1)*log(Z) - Z/scale - shape*log(scale) - lgamma(shape)))
+        }
+        
+        model <- mle2(minusLL, start=list(shape=3,scale=0.5),
+                      method = "L-BFGS-B", 
+                      lower=c(shape=0,scale=1e-10))
+        ci <- confint(model, level=0.95)
+        
+        shape.wconfint <- c(shape.wconfint, ci["shape", 2] - ci["shape", 1])
+        scale.wconfint <- c(scale.wconfint, ci["scale", 2] - ci["scale", 1])
+    }
+    recalculate <- F
+    current.seed <- .Random.seed
+    save(shape.wconfint, scale.wconfint, recalculate, start.seed, current.seed, file="confint_width")
+}
+
+plot(x=seq(1, 1e2, 1)*100, shape.wconfint, col="blue", xlab="n", ylab="Conf. int. width")
+points(seq(1, 1e2, 1)*100, scale.wconfint, col="black", pch=8)
+legend("topright", legend = c("shape", "scale"), col = c("blue", "black"), lty = 1)
+
+plot(x=seq(1, 1e2, 1)*100, log(shape.wconfint), col="blue", xlab="n", ylab="Conf. int. width")
+points(seq(1, 1e2, 1)*100, log(scale.wconfint), col="black", pch=8)
+legend("topright", legend = c("shape", "scale"), col = c("blue", "black"), lty = 1)

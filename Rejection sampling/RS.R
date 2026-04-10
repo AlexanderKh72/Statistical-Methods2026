@@ -1,3 +1,5 @@
+#### Моделирование распределения Бирнбаума-Саундерса адаптивным методом отбора (вариант 15) ####
+
 # Плотность
 dBirnSaund <- function(x) {
   gamma <- 1
@@ -16,13 +18,8 @@ pBirnSaund <- function(x) {
   pnorm((sqrt(x) - sqrt(1/x)) / gamma)
 }
 
-# line2points <- function(x1, y1, x2, y2) {
-#   function(x) (y1 + (y2-y1)/(x2-x1) * (x-x1))
-# }
-
-
 # Логарифм плотности НЕ выпуклый вверх: у него одна точка перегиба
-# Поэтому параметр \gamma фиксирован и захардкодены некоторые костыли
+# Поэтому параметр \gamma фиксирован и захардкоден правый хвост мажоранты
 
 
 # Точки z --- точки пересечения прямых, точки изломов мажоранты
@@ -48,11 +45,11 @@ u <- function(x, h) {
   j <- cumsum(rep(c(+2, -1), k - 2))
   
   slope <- (h[j+1] - h[j]) / (x[j+1] - x[j])
-  intercept <- h[j] - x[j] * slope
-  
+
   # Момент хардкодинга из-за того, что логарифм плотности не выпуклый вверх
   slope[length(slope)] <- -1/2  # h(x) ~ -1/(2*gamma^2) * x, при x -> Inf
-  intercept[length(intercept)] <- -slope[length(slope)] * x[k-1] + h[k-1]  # чтобы проходила через (x_{k-1}, h(x_{k-1}))
+  
+  intercept <- h[j] - x[j] * slope
   
   list(corners=corners, slope=slope, intercept=intercept)
 }
@@ -131,7 +128,7 @@ rBirnSaund <- function(n) {
 # Для проверки корректности моделирования, построим выборку из p-value и проверим её распределение на равномерность
 # 1000 раз промоделируем выборку размера 1000, на каждом шаге воспользуемся критерием Колмогорова-Смирнова, для получения p-value
 load("pvalue_sample")
-# recalculate <- T
+#recalculate <- T
 if (recalculate){
   set.seed(start.seed <- 42)
   pval.sample <- numeric(0)
