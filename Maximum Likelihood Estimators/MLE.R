@@ -21,7 +21,7 @@ delta1 <- as.numeric(X<U)
 delta2 <- as.numeric(X<V)
 
 # Слагаемые логарифма функции правдоподобия, зависящие от неизвестных параметров.
-# Другие слагаемые не зависят от параметров, но зависят от ф.р. U и V, которые неизвестны.
+# Другие слагаемые не зависят от параметров, но зависят от ф.р. U и V, которпя неизвестна.
 # (вывод см. в файле log-likelihood-derivation.pdf)
 minusLL <- function(shape, scale) {
     -sum(delta1*pgamma(Z, shape=shape, scale=scale, log.p=T)+
